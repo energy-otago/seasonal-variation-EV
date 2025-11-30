@@ -1,5 +1,7 @@
 library(tidyverse)
 library(tseries)
+library(zoo)
+library(lmerTest)
 
 # only run if need to process the data
 # source("single_script_project.rda") 
@@ -38,7 +40,7 @@ axis(4, las = 1, col = 2, col.axis = 2)
 
 legend("topright", inset = legend_inset, legend = c("EV Energy Economy", "HDD"), lty = 1, col = 1:2, pch = 1)
 
-write.csv(data.frame(econ = decomp_auck_econ$figure*mean(decomp_auck_econ$x), HDD = decomp_auck_HDD$figure*mean(decomp_auck_HDD$x), month = 1:12), "exported_data/auck_season_decomp_fig_1.csv")
+write.csv(data.frame(econ = decomp_auck_econ$figure*mean(decomp_auck_econ$x), HDD = decomp_auck_HDD$figure*mean(decomp_auck_HDD$x), month = 1:12), "exported_data/fig_1_auck_season_decomp.csv")
 
 
 
@@ -46,7 +48,7 @@ write.csv(data.frame(econ = decomp_auck_econ$figure*mean(decomp_auck_econ$x), HD
 
 
 
-# Figure 2
+# Figure 3
 # decomp_econ = monthly_EV_data$mean_econ %>% 
 #   ts(frequency = 12, start = 2017) %>% 
 #   decompose("multiplicative")
@@ -67,77 +69,86 @@ write.csv(data.frame(econ = decomp_auck_econ$figure*mean(decomp_auck_econ$x), HD
 # 
 # legend("topright", inset = legend_inset, legend = c("EV Energy Economy", "Petrol Usage", "Ministry of Transport VKT"), lty = 1,pch = 1, col = 1:3)
 # 
-# write.csv(data.frame(ev_econ = decomp_econ$figure, petrol = decomp_petrol$figure, vkt = decomp_vkt$figure, month = 1:12), "exported_data/VKT_season_decomp_fig_2.csv")
+# write.csv(data.frame(ev_econ = decomp_econ$figure, petrol = decomp_petrol$figure, vkt = decomp_vkt$figure, month = 1:12), "exported_data/fig_3_VKT_season_decomp.csv")
 # 
 
 
 
 
-
-# Table 3
-write.csv(eff_hierc_grad_cor_model[["coefficients"]][["random"]][["model"]], "exported_data/hierc_coef_tab_3.csv")
-
-
-
-
-
-
-# Table 4
-write.csv(eff_hierc_grad_cor_model[["coefficients"]][["fixed"]][-1:-3], "exported_data/region_coef_tab4.csv")
-write.csv(EV_data %>% group_by(weather_region) %>% summarise(unique_model_count = n_distinct(vehicle)), "exported_data/region_vehicle_count_tab4.csv")
-
-
-
-
-
-
-
-# Figure 3
+# Figure 4
 car_num = 1
 
 lm_resid_ts = zoo(lm_resid[EV_data$vehicle == (EV_data$vehicle %>% levels)[car_num]],
                   order.by = EV_data$time_month[EV_data$vehicle == (EV_data$vehicle %>% levels)[car_num]])
 acf_vehicle1_lm = acf(lm_resid_ts,
-    na.action = na.pass,
-    lag.max = 18,
-    main = "Linear Model",
-    xlab = "Lag (months)")
+                      na.action = na.pass,
+                      lag.max = 18,
+                      main = "Linear Model",
+                      xlab = "Lag (months)")
 
 hierc_grad_cor_m_resid_ts = zoo(hierc_grad_cor_m_resid[EV_data$vehicle == (EV_data$vehicle %>% levels)[car_num]],
                                 order.by = EV_data$time_month[EV_data$vehicle == (EV_data$vehicle %>% levels)[car_num]])
 acf_vehicle1_fm = acf(hierc_grad_cor_m_resid_ts,
-    na.action = na.pass,
-    lag.max = 18,
-    main = "Gradient Mixed Model with Exponential Correlation",
-    xlab = "Lag (months)")
+                      na.action = na.pass,
+                      lag.max = 18,
+                      main = "Gradient Mixed Model with Exponential Correlation",
+                      xlab = "Lag (months)")
 
 car_num = 10
 
 lm_resid_ts = zoo(lm_resid[EV_data$vehicle == (EV_data$vehicle %>% levels)[car_num]],
                   order.by = EV_data$time_month[EV_data$vehicle == (EV_data$vehicle %>% levels)[car_num]])
 acf_vehicle10_lm = acf(lm_resid_ts,
-    na.action = na.pass,
-    lag.max = 18,
-    main = "Linear Model",
-    xlab = "Lag (months)")
+                       na.action = na.pass,
+                       lag.max = 18,
+                       main = "Linear Model",
+                       xlab = "Lag (months)")
 
 hierc_grad_cor_m_resid_ts = zoo(hierc_grad_cor_m_resid[EV_data$vehicle == (EV_data$vehicle %>% levels)[car_num]],
                                 order.by = EV_data$time_month[EV_data$vehicle == (EV_data$vehicle %>% levels)[car_num]])
 acf_vehicle10_fm = acf(hierc_grad_cor_m_resid_ts,
-    na.action = na.pass,
-    lag.max = 18,
-    main = "Gradient Mixed Model with Exponential Correlation",
-    xlab = "Lag (months)")
+                       na.action = na.pass,
+                       lag.max = 18,
+                       main = "Gradient Mixed Model with Exponential Correlation",
+                       xlab = "Lag (months)")
 
 
 acf_data = data.frame(vehicle1_lm = acf_vehicle1_lm$acf, vehicle1_fm = acf_vehicle1_fm$acf, vehicle10_lm = acf_vehicle10_lm$acf, vehicle10_fm = acf_vehicle10_fm$acf)
-write.csv(acf_data, file = "exported_data/acf_data_fig3.csv")
+write.csv(acf_data, file = "exported_data/fig_4_acf_data.csv")
 
 
 
 
 
-# Figure 4
+
+
+
+
+
+
+
+
+
+# Table 3
+write.csv(eff_hierc_grad_cor_model[["coefficients"]][["fixed"]][-1:-3], "exported_data/tab_3_region_coef.csv")
+write.csv(EV_data %>% group_by(weather_region) %>% summarise(unique_model_count = n_distinct(vehicle)), "exported_data/tab_3_region_vehicle_count.csv")
+
+
+
+# Table 4
+write.csv(eff_hierc_grad_cor_model[["coefficients"]][["random"]][["model"]], "exported_data/tab_4_hierc_coef.csv")
+
+
+
+# Table 5
+
+c(BIC(eff_lm), BIC(eff_hierc_grad_cor_model))
+
+
+
+
+
+# Figure 5
 ggplot(EV_test_data_nnv, aes(y = predict_vehicle_econ, x = economy, color = log10(distance))) +
   geom_point() +
   geom_abline(slope = 1) +
@@ -151,7 +162,7 @@ ggplot(EV_test_data_nnv, aes(y = predict_vehicle_econ, x = economy, color = log1
   gg_theme
 
 
-write.csv(EV_test_data_nnv,'exported_data/predicted_vs_measured_vehicle_fig4.csv')
+write.csv(EV_test_data_nnv,'exported_data/fig_5_predicted_vs_measured_vehicle.csv')
 
 
 
@@ -159,7 +170,7 @@ write.csv(EV_test_data_nnv,'exported_data/predicted_vs_measured_vehicle_fig4.csv
 
 
 
-# Figure 5
+# Figure 6
 # measured vs predicted data for individual vehicle
 ggplot(EV_test_data_nnm, aes(y = predict_vehicle_econ, x = economy, color = log10(distance))) +
   geom_point() +
@@ -173,33 +184,67 @@ ggplot(EV_test_data_nnm, aes(y = predict_vehicle_econ, x = economy, color = log1
   ylab("Predicted economy (Wh/km)")+
   gg_theme
 
-write.csv(EV_test_data_nnm,'exported_data/predicted_vs_measured_model_fig5.csv')
+write.csv(EV_test_data_nnm,'exported_data/fig_6_predicted_vs_measured_model.csv')
 
-# predicted_vs_measured total averaged out power
+
+
+
+
+
+# Figure 7 (a)
+# Train-test split based on year. Data before 2022 is training, 2022 is the test prediction. Predicted at the model level
 ggplot(usage_data2, aes(x = date)) +
   geom_line(aes(y = total_mwh, color = "Measured", linetype="Measured")) +
   geom_line(aes(y = pred_mwh, color = "Predicted", linetype="Predicted"), na.rm = TRUE) +
   scale_x_date(
     date_labels = "%b-%Y",
     date_breaks = "6 months",
-    limits = c(as.Date("2021-06-01"),as.Date("2023-01-01"))
+    limits = c(as.Date("2020-05-01"),as.Date("2023-01-01"))
   ) +
   labs(x = "", y = "Monthly Power Usage (MWh)") +
   scale_color_manual(name = "Power Usage", values = c("Measured" = "black", "Predicted" = "red")) +
   scale_linetype_manual(name = "Power Usage", values = c("Measured" = "solid", "Predicted" = "dashed"), drop = FALSE) +
   gg_theme
 
-write.csv(usage_data2,'exported_data/power_usage_fig5.csv')
+write.csv(usage_data2,'exported_data/fig_7a_train_test.csv')
+
+# Figure 7 (b)
+ggplot(vehicle_TT_usage_data, aes(x = date)) +
+  geom_line(aes(y = total_mwh, color = "Measured", linetype="Measured")) +
+  geom_line(aes(y = pred_mwh, color = "Predicted", linetype="Predicted"), na.rm = TRUE) +
+  scale_x_date(date_labels = "%b-%y",
+               date_breaks = "6 months",
+               limits = c(as.Date("2020-05-01"),as.Date("2023-01-01"))
+  ) +
+  labs(x = "", y = "Monthly Power Usage") +
+  scale_color_manual(name = "Power Usage", values = c("Measured" = "black", "Predicted" = "red")) +
+  scale_linetype_manual(name = "Power Usage", values = c("Measured" = "solid", "Predicted" = "dashed")) +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  gg_theme
+
+write.csv(vehicle_TT_usage_data,'exported_data/fig_7b_train_test_power_usage_m_level_predictions.csv')
+
+# Figure 7 (c)
+ggplot(usage_data_diag, aes(x = date)) +
+  geom_line(aes(y = total_mwh, color = "Measured", linetype="Measured")) +
+  geom_line(aes(y = pred_mwh, color = "Predicted", linetype="Predicted"), na.rm = TRUE) +
+  scale_x_date(date_labels = "%b-%y",
+               date_breaks = "6 months",
+               limits = c(as.Date("2020-05-01"),as.Date("2023-01-01"))
+  ) +
+  labs(x = "", y = "Monthly Power Usage") +
+  scale_color_manual(name = "Power Usage", values = c("Measured" = "black", "Predicted" = "red")) +
+  scale_linetype_manual(name = "Power Usage", values = c("Measured" = "solid", "Predicted" = "dashed")) +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  gg_theme
+
+write.csv(EV_diag_test_data,'exported_data/fig_7c_train_test_diag-split_pred_vs_measured_m_level_predictions.csv')
 
 
 
 
 
-
-
-
-
-# Figure 6
+# Figure 8
 ggplot(vehicle_auck_pred) +
   # geom_jitter(
   #   aes(
@@ -230,13 +275,13 @@ ggplot(vehicle_auck_pred) +
     xlab("Vehicle Type") +
     ylab("Estimated Consumption (Wh/km)") +
     labs(
-      size = "No. Monthly Measurements",
+      # size = "No. Monthly Measurements",
       fill = "Vehicle Type",
       color = "Vehicle Type"
     ) +
   gg_theme
 
-write.csv(vehicle_auck_pred,'exported_data/vehicle_type_auck_pred_fig6.csv')
+write.csv(vehicle_auck_pred,'exported_data/fig_8_vehicle_type_auck_pred.csv')
 
 
 
@@ -247,7 +292,7 @@ write.csv(vehicle_auck_pred,'exported_data/vehicle_type_auck_pred_fig6.csv')
 
 
 
-# Figure 7 
+# Figure 9
 
 ggplot(clyde_heat_comp_data, aes(x = Month, y = pred_econ, color = model)) +
   geom_line() +
@@ -256,41 +301,14 @@ ggplot(clyde_heat_comp_data, aes(x = Month, y = pred_econ, color = model)) +
   scale_x_discrete(limits = month.abb) +
   gg_theme
 
-write.csv(clyde_heat_comp_data,'exported_data/clyde_heat_pump_comp_fig7.csv')
+write.csv(clyde_heat_comp_data,'exported_data/fig_9_clyde_heat_pump_comp.csv')
 
 
 
-
-# Figure 8 could theoretically be done without VKT data however our process we modeled whole scenario at once so this was not done. 
-
-# # Figure 8 
+ 
+# # Figure 11 can't do this without the vkt numbers
 # 
-# dist1_pred %>% 
-#   group_by(year, month, model) %>% 
-#   summarise(
-#     model_econ = sum(pred_econ*distance/sum(distance)),
-#     model_econ_lc = sum(pred_econ*distance/sum(distance)) - sqrt(sum((std_err*distance/sum(distance))^2)),
-#     model_econ_uc = sum(pred_econ*distance/sum(distance)) + sqrt(sum((std_err*distance/sum(distance))^2))
-#   ) %>%
-#   ggplot() +
-#   geom_line(aes(x = month, y = model_econ, color = model, linetype = "Prediction")) +
-#   geom_line(aes(x = month, y = model_econ_lc, color = model, linetype = "Confidence Interval")) +
-#   geom_line(aes(x = month, y = model_econ_uc, color = model, linetype = "Confidence Interval")) +
-#   scale_x_discrete(limits = month.abb) +
-#   scale_linetype_manual(
-#     name = "Economy", 
-#     values = c("Prediction" = "solid", "Confidence Interval" = "dashed")
-#   ) +
-#   ylab("EV Average NZ wide Economy (Wh/km)") +
-#   xlab("") +
-#   gg_theme
-# 
-# write.csv(dist1_pred,'exported_data/dist1_pred_fig8.csv')
-# 
-# 
-# # Figure 9 
-# 
-# # did Michael use the future VKT numbers
+# # I thinked Michael use the future VKT numbers, not current ones like I did
 # # Auckland
 # dist1_pred %>% 
 #   filter(vkt_region == "Auckland") %>%

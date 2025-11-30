@@ -8,6 +8,8 @@ library(nlme)
 library(tidyverse)
 library(rlist)
 
+rm(list=ls())
+
 
 
 
@@ -253,7 +255,7 @@ combine_ev_temp = function(EV_data, weather_data, HDD_temp = 16, CDD_temp = 22) 
 # cv_scores_plot = base_temps[[6]]
 
 # temporary variable so that I do not have to run the slow cross validation each time
-HDD_base_temp = 14 # 14 seems to remove all correlation for CDD if CDD is < 24 ish
+HDD_base_temp = 14
 CDD_base_temp = 24
 # Combining EV data with calculated temperature data
 temp_list = combine_ev_temp(EV_data, weather_data, HDD_temp = HDD_base_temp, CDD_temp = CDD_base_temp)
@@ -274,7 +276,7 @@ EV_data$date = as.yearmon(paste(EV_data$year, EV_data$month), "%Y %m") %>% as.Da
 
 # Multi-region vehicle and model handling
 
-# if one vehicle spans multiple regions, split into 2 different regions
+# if one vehicle spans multiple regions, split into 2 different vehicles 
 multi_region_vehicle_regions = list()
 multi_region_vehicle = c()
 for (vehicle in unique(EV_data$vehicle)) {
@@ -296,7 +298,7 @@ for (vehicle_idx in seq_along(multi_region_vehicle)) {
 }
 
 # original method: remove vehicles that span multiple different models.
-# however on confirmation with Daniel it appears that it means that the first model they were using must be wrong model
+# however on confirmation with Daniel it appears that it means that the first model they were using must be wrong model 
 multi_model_vehicle_models = list()
 multi_model_vehicle = c()
 for (vehicle in unique(EV_data$vehicle)) {
@@ -310,6 +312,7 @@ for (vehicle in unique(EV_data$vehicle)) {
 multi_model_vehicle
 multi_model_vehicle_models
 
+# So most recent model is used
 for (vehicle_id in multi_model_vehicle) {
   most_recent_model = EV_data$model[EV_data$time_month[EV_data$vehicle == vehicle_id] %>% which.max]
   EV_data$model[EV_data$vehicle == vehicle_id] = most_recent_model
@@ -423,7 +426,7 @@ hierc_grad_cor_m_resid = resid(eff_hierc_grad_cor_model, type = "normalized")
 
 # Prediction
 
-# Train-test Split and training model
+# Train-test Split with split based on year
 
 EV_training_data = EV_data[EV_data$year <2022,]
 EV_test_data = EV_data[EV_data$year >=2022,]
@@ -469,6 +472,109 @@ usage_data2 = cbind(usage_data2,
                     )
 )
 
+
+# Train-test split based on vehicles
+test_vehicles = c()
+for (m in (model_pop %>% filter(count > 3))$model) {
+  sampled_vehicles = (vehicle_pop %>% filter(model == m) %>% data.frame() %>% sample_frac(0.25))$vehicle
+  test_vehicles = c(sampled_vehicles, test_vehicles)
+}
+
+EV_vehicle_test_data = EV_data[EV_data$vehicle %in% test_vehicles,]
+EV_vehicle_train_data = EV_data[!(EV_data$vehicle %in% test_vehicles),]
+
+vehicle_TT_model = lme(fixed = economy ~ HDD + CDD + weather_region,
+                       random = ~ 1 + HDD | model/vehicle,
+                       weights = ~ I(1/distance),
+                       correlation = corAR1(form = ~ time_month | model/vehicle),
+                       data = EV_vehicle_train_data
+)
+
+
+
+EV_vehicle_test_data$predict_vehicle_econ = predict(vehicle_TT_model, newdata = EV_vehicle_test_data, level = 1) # Did not notice when doing the project but it seems if greymouth data is not included in training data can lead to problem. I could update code so that this does not happen but paper is already out and it works fine if you just rerun it
+EV_vehicle_test_data$wh_pred = EV_vehicle_test_data$predict_vehicle_econ * EV_vehicle_test_data$distance
+
+vehicle_TT_usage_data = total_wh(EV_vehicle_test_data$time_month, EV_vehicle_test_data$wh)
+vehicle_TT_usage_data = cbind(vehicle_TT_usage_data,
+                              data.frame(
+                                "pred_mwh" = total_wh(EV_vehicle_test_data$time_month, EV_vehicle_test_data$wh_pred)$total_mwh,
+                                "pred_no_vehicle" = total_wh(EV_vehicle_test_data$time_month, EV_vehicle_test_data$wh_pred)$no_vehicle
+                              )
+)
+
+# Train-test split with diagonal of year and vehicles
+
+vehicle_pop$train_data_count = sapply(
+  vehicle_pop$vehicle,
+  function (v) EV_data[EV_data$vehicle == v & EV_data$year <=2021,] %>% nrow
+)
+
+vehicle_pop$test_data_count = sapply(
+  vehicle_pop$vehicle,
+  function (v) EV_data[EV_data$vehicle == v & EV_data$year >2021,] %>% nrow
+)
+#condition of being guaranteed into train or test data set. 
+
+vehicle_pop$train_test_as = 0
+for (i in 1:length(vehicle_pop$vehicle)) {
+  train_count = vehicle_pop$train_data_count[i]
+  test_count = vehicle_pop$test_data_count[i]
+  if (
+    train_count == 0 |
+    train_count < test_count
+  ) {
+    vehicle_pop$train_test_as[i] = "test"
+  } else if (
+    test_count <= 6 & (test_count * 3 < train_count)
+  ) {
+    vehicle_pop$train_test_as[i] = "train"
+  } else {
+    vehicle_pop$train_test_as[i] = "random"
+  }
+}
+
+# randomly assigning the rest to trainr or testr 
+test_vehicles_diag = c()
+for (m in (model_pop %>% filter(count > 3))$model) {
+  sampled_vehicles = (vehicle_pop %>% filter(model == m & train_test_as == "random") %>% data.frame() %>% sample_frac(0.3))$vehicle
+  for (s in sampled_vehicles) {
+    vehicle_pop$train_test_as[vehicle_pop$vehicle == s] = "testr"
+  }
+}
+vehicle_pop$train_test_as[vehicle_pop$train_test_as == "random"] = "trainr"
+
+
+EV_diag_train_data = EV_data[
+  EV_data$vehicle %in% vehicle_pop$vehicle[vehicle_pop$train_test_as %in% c("train", "trainr")] &
+    EV_data$year < 2022,
+]
+EV_diag_test_data = EV_data[
+  EV_data$vehicle %in% vehicle_pop$vehicle[vehicle_pop$train_test_as %in% c("test", "testr")] &
+    EV_data$model %in% EV_diag_train_data$model &
+    EV_data$year >= 2022,
+]
+
+diag_TT_model = lme(fixed = economy ~ HDD + CDD + weather_region,
+                       random = ~ 1 + HDD | model/vehicle,
+                       weights = ~ I(1/distance),
+                       correlation = corAR1(form = ~ time_month | model/vehicle),
+                       data = EV_diag_train_data
+                       )
+
+EV_diag_test_data$predict_vehicle_econ = predict(diag_TT_model, newdata = EV_diag_test_data, level = 1)
+EV_diag_test_data$wh_pred = EV_diag_test_data$predict_vehicle_econ * EV_diag_test_data$distance
+
+usage_data_diag = rbind(
+  total_wh(EV_diag_train_data$time_month, EV_diag_train_data$wh),
+  total_wh(EV_diag_test_data$time_month, EV_diag_test_data$wh)
+) %>% na.omit
+usage_data_diag = cbind(usage_data_diag,
+                        data.frame(
+                          "pred_mwh" = total_wh(EV_diag_test_data$time_month, EV_diag_test_data$wh_pred)$total_mwh,
+                          "pred_no_vehicle" = total_wh(EV_diag_test_data$time_month, EV_diag_test_data$wh_pred)$no_vehicle
+                        )
+)
 
 
 
@@ -573,6 +679,7 @@ save(EV_data,
      EV_test_data_nnm,
      econ_model,
      usage_data2,
+     vehicle_TT_usage_data,
      vehicle_type,
      vehicle_auck_pred,
      clyde_heat_comp_data,
